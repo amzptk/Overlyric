@@ -45,6 +45,8 @@ Settings → Advanced has **Open** buttons for this folder and the lyric cache.
 | `OutputOffsets` | `{}` | Per-output-device corrections, keyed by the CoreAudio endpoint id; each value carries `Name`, `OffsetMs` and `Bluetooth`. Used when the track has no override |
 | `RememberTrackOffset` | `true` | A timing nudge is saved for the current track. Off makes nudges session-only; holding Shift has the same effect per nudge |
 | `Theme` | `Default` | Curated palette: `Default`, `Warm`, `Cool` or `Mono` |
+| `ActiveLyricColor` | `""` | Colour of the line being sung and of the sung part of the karaoke sweep, as `#RRGGBB`. Empty follows the palette. Only the lyrics change; the header, notices and control bar keep the palette |
+| `InactiveLyricColor` | `""` | Hue of the surrounding lines and of the unsung part of the sweep, as `#RRGGBB`. Empty follows `ActiveLyricColor` (or the palette). The dimming still comes from `InactiveLineOpacity`, and `KaraokeBlackout` still turns the unsung part pure black |
 | `StageMode` | `false` | Full-monitor audience display with large centred lyrics and an opaque backdrop |
 | `StageChroma` | `false` | Stage backdrop as chroma-key green instead of black |
 | `ActiveLyricWeight` | `SemiBold` | Weight of the line being sung: `Normal`, `SemiBold` or `Bold` |
@@ -53,6 +55,10 @@ Settings → Advanced has **Open** buttons for this folder and the lyric cache.
 | `Shortcuts` | `{}` | Action name → chord text, e.g. `"ToggleOverlay": "Ctrl+Alt+H"`. A missing entry uses the built-in default and an empty string means deliberately unbound, so a hand-edited file cannot silently lose a shortcut |
 | `SourcePriority` | `[]` | Players to prefer, in order, when several publish at once. Each entry is an app user model id plus a label |
 | `SourcePinned` | `""` | App user model id of the pinned player, or empty for automatic. A pin outranks the priority list |
+
+Settings → Appearance → **Lyric colour** offers eight swatches and a **Theme** button that clears
+the choice. Any other colour can be typed into `config.json` by hand; a value that is not `#RRGGBB`
+(the `#` optional, any case) is cleared on load and the palette is used instead.
 
 Numbers are clamped on load (for example `MultiLineCount` to 1–11 and every timing offset to
 ±10,000 ms), so a hand-edited value that is out of range is corrected rather than rejected. The two

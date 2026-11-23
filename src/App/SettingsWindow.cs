@@ -252,6 +252,18 @@ internal sealed class SettingsWindow : WindowBase
         /// <summary>Hide while an application captures from the microphone.</summary>
         HideWhenMic = 127,
 
+        /// <summary>Clear the active lyric colour so it follows the palette again.</summary>
+        ActiveColorTheme = 130,
+
+        /// <summary>Active lyric colour swatches: this base plus the index into <see cref="LyricColor.Swatches"/>.</summary>
+        ActiveColorBase = 131,
+
+        /// <summary>Clear the dim lyric colour so it follows the active colour again.</summary>
+        InactiveColorTheme = 140,
+
+        /// <summary>Dim lyric colour swatches: this base plus the index into <see cref="LyricColor.Swatches"/>.</summary>
+        InactiveColorBase = 141,
+
         /// <summary>
         /// The four offset nudges and the scrollbar. Their values fill the gap between the shortcut
         /// chips and the OLED block, the only stretch of the id space left; the enum's order documents
@@ -333,7 +345,7 @@ internal sealed class SettingsWindow : WindowBase
     /// One past the last row index each section draws. The viewport needs the height before the section
     /// is drawn, so this is a table rather than something measured twice.
     /// </summary>
-    private static readonly int[] SectionRows = [11, 10, 8, 5, 9, 8, ShortcutActions.All.Length + 1, 4];
+    private static readonly int[] SectionRows = [11, 12, 8, 5, 9, 8, ShortcutActions.All.Length + 1, 4];
 
     private readonly AppConfig _config;
     private readonly Action<SettingsChange> _changed;
@@ -1211,6 +1223,35 @@ internal sealed class SettingsWindow : WindowBase
 
     private void Activate(int id)
     {
+        // The colour swatches are two contiguous blocks, decoded like the shortcut chips.
+        if (id >= (int)Control.ActiveColorBase && id < (int)Control.ActiveColorBase + LyricColor.Swatches.Length)
+        {
+            _config.ActiveLyricColor = LyricColor.Format(LyricColor.Swatches[id - (int)Control.ActiveColorBase].Argb);
+            Apply(SettingsChange.Appearance);
+            return;
+        }
+
+        if (id >= (int)Control.InactiveColorBase && id < (int)Control.InactiveColorBase + LyricColor.Swatches.Length)
+        {
+            _config.InactiveLyricColor = LyricColor.Format(LyricColor.Swatches[id - (int)Control.InactiveColorBase].Argb);
+            Apply(SettingsChange.Appearance);
+            return;
+        }
+
+        if (id == (int)Control.ActiveColorTheme)
+        {
+            _config.ActiveLyricColor = string.Empty;
+            Apply(SettingsChange.Appearance);
+            return;
+        }
+
+        if (id == (int)Control.InactiveColorTheme)
+        {
+            _config.InactiveLyricColor = string.Empty;
+            Apply(SettingsChange.Appearance);
+            return;
+        }
+
         if (id >= (int)Control.ShortcutChipBase && id < (int)Control.ShortcutChipBase + ShortcutActions.All.Length)
         {
             BeginCapture(id - (int)Control.ShortcutChipBase);
@@ -2025,12 +2066,30 @@ internal sealed class SettingsWindow : WindowBase
                 ("Bold", Control.WeightBold, _config.ActiveLyricWeight == LyricWeight.Bold)
             ]);
 
-        Group(context, 8, "STAGE");
+        Group(context, 8, "LYRIC COLOUR");
 
-        RowWithNote(context, 8, "Stage mode", "full monitor, large centred lyrics, no bar");
+        RowWithNote(
+            context,
+            8,
+            "Active lyric colour",
+            _config.ActiveLyricColor.Length == 0 ? "follows the palette" : _config.ActiveLyricColor);
+        ColorSwatches(context, Control.ActiveColorTheme, Control.ActiveColorBase, _config.ActiveLyricColor);
+
+        RowWithNote(
+            context,
+            9,
+            "Dim lyric colour",
+            _config.KaraokeBlackout
+                ? "unsung part stays black (blackout on)"
+                : _config.InactiveLyricColor.Length == 0 ? "follows the active colour" : _config.InactiveLyricColor);
+        ColorSwatches(context, Control.InactiveColorTheme, Control.InactiveColorBase, _config.InactiveLyricColor);
+
+        Group(context, 10, "STAGE");
+
+        RowWithNote(context, 10, "Stage mode", "full monitor, large centred lyrics, no bar");
         Toggle(context, Control.StageMode, _config.StageMode);
 
-        Row(context, 9, "Chroma-key green", child: true, enabled: _config.StageMode);
+        Row(context, 11, "Chroma-key green", child: true, enabled: _config.StageMode);
         Toggle(context, Control.StageChroma, _config.StageChroma && _config.StageMode, enabled: _config.StageMode);
     }
 
@@ -2525,6 +2584,56 @@ internal sealed class SettingsWindow : WindowBase
         }
     }
 
+    /// <summary>
+    /// A row of colour swatches with a "Theme" button in front that clears the choice. The selected
+    /// swatch gets an accent ring; a hand-typed colour that matches no swatch selects none and is
+    /// named in the row's note instead.
+    /// </summary>
+    private void ColorSwatches(ID2D1DeviceContext context, Control themeId, Control baseId, string current)
+    {
+        const float size = 24f;
+        const float gap = 6f;
+        const float themeWidth = 64f;
+
+        var swatches = LyricColor.Swatches;
+        var total = themeWidth + gap + (swatches.Length * size) + ((swatches.Length - 1) * gap);
+        var left = ContentRight - total;
+        var rowTop = RowTop(RowOf(themeId));
+        var top = rowTop + ((RowHeightDip - size) / 2f);
+        var selectedArgb = LyricColor.Parse(current);
+
+        // "Theme" reads as selected while nothing is chosen, like a segmented control's default.
+        var themeSelected = selectedArgb is null;
+        var themeHot = _hover == (int)themeId;
+        var buttonTop = rowTop + ((RowHeightDip - 30f) / 2f);
+        FillRound(context, left, buttonTop, themeWidth, 30f, 8f,
+            themeSelected ? ColorSelected : (themeHot ? ColorControlHot : ColorControl));
+        Label(context, "Theme", left, buttonTop, themeWidth, 30f, 12.5f,
+            themeSelected ? FontWeight.SemiBold : FontWeight.Normal,
+            themeSelected ? ColorAccent : ColorTextDim, TextAlignment.Center);
+        Hit((int)themeId, R(left, buttonTop, left + themeWidth, buttonTop + 30f));
+
+        left += themeWidth + gap;
+
+        for (var i = 0; i < swatches.Length; i++)
+        {
+            var id = (int)baseId + i;
+            var selected = selectedArgb == swatches[i].Argb;
+            var hot = _hover == id;
+
+            if (selected || hot)
+            {
+                FillRound(context, left - 3f, top - 3f, size + 6f, size + 6f, (size + 6f) / 2f,
+                    selected ? ColorAccent : ColorControlHot);
+                FillRound(context, left - 1f, top - 1f, size + 2f, size + 2f, (size + 2f) / 2f, ColorWindow);
+            }
+
+            FillRound(context, left, top, size, size, size / 2f, swatches[i].Argb);
+            Hit(id, R(left - 3f, top - 3f, left + size + 3f, top + size + 3f));
+            left += size + gap;
+        }
+    }
+
     private void Stepper(ID2D1DeviceContext context, string value, Control down, Control up, bool enabled = true)
     {
         const float height = 30f;
@@ -2751,8 +2860,10 @@ internal sealed class SettingsWindow : WindowBase
         Control.OledOutline => 5,
         Control.ThemeDefault or Control.ThemeWarm or Control.ThemeCool or Control.ThemeMono => 6,
         Control.WeightNormal or Control.WeightSemiBold or Control.WeightBold => 7,
-        Control.StageMode => 8,
-        Control.StageChroma => 9,
+        Control.ActiveColorTheme => 8,
+        Control.InactiveColorTheme => 9,
+        Control.StageMode => 10,
+        Control.StageChroma => 11,
 
         // Behaviour
         Control.HidePaused => 0,

@@ -197,6 +197,19 @@ internal sealed class AppConfig
     /// <summary>The curated palette; the OLED preset still decides the backdrop and burn-in levers.</summary>
     public ThemePreset Theme { get; set; } = ThemePreset.Default;
 
+    /// <summary>
+    /// Colour of the line being sung and of the sung part of the karaoke sweep, as <c>#RRGGBB</c>.
+    /// Empty - the default - follows the palette, so an older config draws exactly what it drew before.
+    /// </summary>
+    public string ActiveLyricColor { get; set; } = "";
+
+    /// <summary>
+    /// Hue of the surrounding lines and of the unsung part of the sweep, as <c>#RRGGBB</c>. Empty
+    /// follows the active lyric colour. Either way the dimming comes from
+    /// <see cref="InactiveLineOpacity"/>, so "dim" still means dimmer.
+    /// </summary>
+    public string InactiveLyricColor { get; set; } = "";
+
     /// <summary>Weight of the active line. The surrounding lines stay normal.</summary>
     public LyricWeight ActiveLyricWeight { get; set; } = LyricWeight.SemiBold;
 
@@ -299,6 +312,9 @@ internal sealed class AppConfig
             Theme = ThemePreset.Default;
         }
 
+        ActiveLyricColor = LyricColor.Normalise(ActiveLyricColor);
+        InactiveLyricColor = LyricColor.Normalise(InactiveLyricColor);
+
         if (ActiveLyricWeight is not (LyricWeight.Normal or LyricWeight.SemiBold or LyricWeight.Bold))
         {
             ActiveLyricWeight = LyricWeight.SemiBold;
@@ -386,7 +402,10 @@ internal sealed class AppConfig
             _ => (0xFFF5F7FA, 0xFF7CC4FF)
         };
 
-        var inactive = ScaleAlpha(activeText, InactiveLineOpacity);
+        // The user's lyric colours replace the palette's text hue for the lyrics only; the header,
+        // the notices and the control bar keep the palette so they stay recognisably the app's.
+        var activeLyric = LyricColor.Parse(ActiveLyricColor) ?? activeText;
+        var inactive = ScaleAlpha(LyricColor.Parse(InactiveLyricColor) ?? activeLyric, InactiveLineOpacity);
         var stage = StageMode;
 
         return new OverlayTheme
@@ -405,7 +424,7 @@ internal sealed class AppConfig
             BackgroundColor = stage
                 ? StageChroma ? 0xFF00FF00u : 0xFF000000u
                 : ScaleAlpha(0xB4101014, BackgroundOpacity),
-            ActiveTextColor = activeText,
+            ActiveTextColor = activeLyric,
             InactiveTextColor = inactive,
             HeaderTextColor = ScaleAlpha(activeText, 0.6),
             ProgressColor = ScaleAlpha(accent, 0.8),

@@ -18,6 +18,7 @@
          without a window, a device or a settings click. -->
     <Compile Include="..\..\src\App\AppConfig.cs" />
     <Compile Include="..\..\src\App\InstanceScope.cs" />
+    <Compile Include="..\..\src\App\LyricColor.cs" />
     <Compile Include="..\..\src\App\MonitorSettings.cs" />
     <Compile Include="..\..\src\Media\AudioOutput.cs" />
     <Compile Include="..\..\src\Media\PresenceRules.cs" />

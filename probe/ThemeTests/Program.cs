@@ -142,6 +142,57 @@ internal static class Program
             !stageBlack.ShowActiveLineHighlight && stageBlack.TextOutline, "");
         Check("stage mode is off by default", !new AppConfig().StageMode, new AppConfig().StageMode);
 
+        // ---- Lyric colours: empty follows the palette, a choice replaces the lyric hue only. ----
+        Check("a fresh config has no lyric colour of its own",
+            new AppConfig().ActiveLyricColor == "" && new AppConfig().InactiveLyricColor == "", "");
+        Check("with no lyric colour, the default theme is unchanged",
+            defaultTheme.ActiveTextColor == 0xFFF5F7FA && defaultTheme.InactiveTextColor == 0x89F5F7FA,
+            $"{defaultTheme.ActiveTextColor:X8}/{defaultTheme.InactiveTextColor:X8}");
+
+        var yellow = new AppConfig { ActiveLyricColor = "#FFE066" }.ToTheme();
+        Check("the active colour reaches the sung line",
+            yellow.ActiveTextColor == 0xFFFFE066, yellow.ActiveTextColor.ToString("X8"));
+        Check("with no dim colour, the surrounding lines follow the active hue, dimmed",
+            yellow.InactiveTextColor == 0x89FFE066, yellow.InactiveTextColor.ToString("X8"));
+        Check("the unsung half of the sweep follows the dim colour",
+            yellow.KaraokeUnlitColor == yellow.InactiveTextColor, yellow.KaraokeUnlitColor.ToString("X8"));
+        Check("the header, notices and controls keep the palette",
+            yellow.HeaderTextColor == defaultTheme.HeaderTextColor
+            && yellow.ControlTextColor == defaultTheme.ControlTextColor
+            && yellow.NoticeTitleColor == defaultTheme.NoticeTitleColor, "");
+
+        var both = new AppConfig { ActiveLyricColor = "#FFFFFF", InactiveLyricColor = "7cc4ff", InactiveLineOpacity = 0.4 }.ToTheme();
+        Check("a dim colour keeps its own hue and the dim opacity",
+            both.InactiveTextColor == 0x667CC4FF, both.InactiveTextColor.ToString("X8"));
+
+        var blackColour = new AppConfig { ActiveLyricColor = "#FF6B6B", InactiveLyricColor = "#7CC4FF", KaraokeBlackout = true }.ToTheme();
+        Check("the blackout still wins over the dim colour on the unsung half",
+            blackColour.KaraokeUnlitColor == 0xFF000000 && blackColour.ActiveTextColor == 0xFFFF6B6B,
+            $"{blackColour.KaraokeUnlitColor:X8}/{blackColour.ActiveTextColor:X8}");
+
+        var warmYellow = new AppConfig { Theme = ThemePreset.Warm, ActiveLyricColor = "#FFE066" }.ToTheme();
+        Check("a lyric colour overrides the palette's text hue but not its accent",
+            warmYellow.ActiveTextColor == 0xFFFFE066 && warmYellow.ControlAccentColor == 0xFFFFB870, "");
+
+        var stageColour = new AppConfig { StageMode = true, ActiveLyricColor = "#7CF2A6" }.ToTheme();
+        Check("stage mode uses the lyric colour too",
+            stageColour.ActiveTextColor == 0xFF7CF2A6, stageColour.ActiveTextColor.ToString("X8"));
+
+        Check("a hand-typed colour is parsed with or without # and in any case",
+            LyricColor.Parse("#ffe066") == 0xFFFFE066 && LyricColor.Parse("FFE066") == 0xFFFFE066
+            && LyricColor.Parse("  #FfE066 ") == 0xFFFFE066, "");
+        Check("a malformed colour is rejected",
+            LyricColor.Parse("#FFF") is null && LyricColor.Parse("red") is null && LyricColor.Parse("#GGGGGG") is null
+            && LyricColor.Parse("#FFE0661") is null && LyricColor.Parse("") is null && LyricColor.Parse(null) is null, "");
+        Check("normalising gives #RRGGBB or empty",
+            LyricColor.Normalise(" ffe066") == "#FFE066" && LyricColor.Normalise("nope") == "" && LyricColor.Normalise(null) == "", "");
+        Check("a malformed colour in the theme falls back to the palette",
+            new AppConfig { ActiveLyricColor = "banana" }.ToTheme().ActiveTextColor == 0xFFF5F7FA, "");
+        Check("every swatch is opaque and round-trips through the stored form",
+            LyricColor.Swatches.All(s => (s.Argb >> 24) == 0xFF && LyricColor.Parse(LyricColor.Format(s.Argb)) == s.Argb), "");
+        Check("the swatches are distinct",
+            LyricColor.Swatches.Select(s => s.Argb).Distinct().Count() == LyricColor.Swatches.Length, "");
+
         Console.WriteLine();
         Console.WriteLine(_failures == 0 ? "ALL CHECKS PASSED" : $"{_failures} CHECK(S) FAILED");
 
